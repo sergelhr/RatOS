@@ -1,6 +1,26 @@
 #!/usr/bin/env bash
 # Shebang for better file detection
 
+# extra_board_config (example)
+BOARD_NAME="raspberrypi-cm5"
+BOARD_VARIANT="bookworm-lite"
+BOARD_ARCH="aarch64"        # change from armhf -> arm64 (or aarch64 if your scripts expect that)
+DEBOOTSTRAP_ARCH="arm64"  # ensure debootstrap/apt uses arm64
+QEMU_BINARY="/usr/bin/qemu-aarch64-static"
+
+
+
+# New locations after Bookworm turned into 'oldstable'
+DOWNLOAD_URL_CHECKSUM="https://downloads.raspberrypi.org/raspios_oldstable_lite_arm64/images/raspios_oldstable_lite_arm64-2025-11-24/2025-11-24-raspios-bookworm-arm64-lite.img.xz.sha256"
+DOWNLOAD_URL_IMAGE="https://downloads.raspberrypi.org/raspios_oldstable_lite_arm64/images/raspios_oldstable_lite_arm64-2025-11-24/2025-11-24-raspios-bookworm-arm64-lite.img.xz.torrent"
+
+
+# export variables
+export BASE_ARCH
+export DOWNLOAD_URL_CHECKSUM
+export DOWNLOAD_URL_IMAGE#!/usr/bin/env bash
+# Shebang for better file detection
+
 BASE_ARCH="arm64"
 
 # Keep for Bookworm template
