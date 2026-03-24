@@ -1,18 +1,14 @@
-
 ####################################################
-####     MainsailOS specific configurations     ####
+####     RatOS specific configurations          ####
 ####################################################
 ####      DO NOT CHANGE SECTION BELOW !!!       ####
 ####   UNLESS YOU KNOW WHAT YOU ARE DOING !!!   ####
 ####################################################
-
 ## For more options and information see
 ## https://www.raspberrypi.com/documentation/computers/config_txt.html
 ## Some settings may impact device functionality. See link above for details
-
 ## For additional information about device filters see
 ## https://www.raspberrypi.com/documentation/computers/config_txt.html#model-filters
-
 
 [pi0]
 ## This affects Pi Zero(W) and Pi Zero2
@@ -43,13 +39,21 @@ gpu_mem=256
 ## BTT Pi TFT's touch don't work with KMS on pi4 so we use FKMS for now.
 dtoverlay=vc4-fkms-v3d
 
-[all]
+[cm5]
+## CM5 uses PCIe for NVMe and USB3, enable if needed
+# dtoverlay=pcie-32bit-dma
+## Enable DWC2 for USB device mode on CM5 IO board
+dtoverlay=dwc2,dr_mode=host
+## CM5 uses KMS, not FKMS
+dtoverlay=vc4-kms-v3d
+## Disable power LED if desired
+# dtparam=pwr_led_trigger=default-on
 
+[all]
 ## SPI Interface is enabled by default for Input Shaper
 ## This colides with Hyperpixel Display!
 ## Hyperpixel Screen uses the same Pin for Backlight.
 dtparam=spi=on
-
 
 ## Enable Hardware UART for Serial Communication
 ## This also disables Bluetooth!
@@ -59,18 +63,10 @@ dtoverlay=disable-bt
 ## Enable I2C by default.
 ## This is used by Klipper's Host MCU
 ## See https://www.klipper3d.org/RPi_microcontroller.html#optional-enabling-i2c
-## for destails.
-## For MPU Accelrometer please use
+## for details.
+## For MPU Accelerometer please use
 ## dtparam=i2c_arm=on,i2c_arm_baudrate=400000
 dtparam=i2c_arm=on
 
-
-### EXPERIMENTAL - Enable 64bit Kernel
-### The 64-bit kernel will only work on:
-### Raspberry Pi 3, 3+, 4, 400, Zero 2 W and 2B rev 1.2
-### and Raspberry Pi Compute Modules 3, 3+ and 4.
-# arm_64bit=1
-
 ####################################################
-
 [all]
