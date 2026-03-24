@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Shebang for better file detection
 
-[ -n "$PICONFIG_CONFIG_TXT_FILE" ] || PICONFIG_CONFIG_TXT_FILE="/boot/config.txt"
-[ -n "$PICONFIG_CMDLINE_TXT_FILE" ] || PICONFIG_CMDLINE_TXT_FILE="/boot/cmdline.txt"
-[ -n "$PICONFIG_CONFIG_BAK_FILE" ] || PICONFIG_CONFIG_BAK_FILE="/boot/config.txt.backup"
-[ -n "$PICONFIG_CMDLINE_BAK_FILE" ] || PICONFIG_CMDLINE_BAK_FILE="/boot/cmdline.txt.backup"
+[ -n "$PICONFIG_CONFIG_TXT_FILE" ] || PICONFIG_CONFIG_TXT_FILE="/boot/firmware/config.txt"
+[ -n "$PICONFIG_CMDLINE_TXT_FILE" ] || PICONFIG_CMDLINE_TXT_FILE="/boot/firmware/cmdline.txt"
+[ -n "$PICONFIG_CONFIG_BAK_FILE" ] || PICONFIG_CONFIG_BAK_FILE="/boot/firmware/config.txt.backup"
+[ -n "$PICONFIG_CMDLINE_BAK_FILE" ] || PICONFIG_CMDLINE_BAK_FILE="/boot/firmware/cmdline.txt.backup"
 
 [ -n "$PICONFIG_SWAP_CONF_FILE" ] || PICONFIG_SWAP_CONF_FILE="/etc/dphys-swapfile"
 [ -n "$PICONFIG_SWAP_SIZE" ] || PICONFIG_SWAP_SIZE="256"
