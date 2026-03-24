@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# RatOS Local Config Override
+# This file is sourced LAST and overrides any auto-generated settings
+
+# Force 64-bit architecture (overrides extra_board_config)
+#export BASE_ARCH="arm64"
+export BASE_DISTRO=raspios64
+export BASE_ARCH=aarch64
+export BASE_BOARD=raspberrypiarm64
+export BASE_IGNORE_VARIANT_NAME=yes
+export BASE_IMAGE_RASPBIAN=no
+export BASE_SSH_ENABLE=yes
+export BASE_BOOT_MOUNT_PATH=boot/firmware
+# QEMU settings for 64-bit ARM
+export QEMU_BINARY="qemu-aarch64-static"
+export QEMU_CPU="cortex-a72"
+export BASE_QEMU_CPU_OPTIONS="-cpu cortex-a72"
+export PICONFIG_CONFIG_TXT_FILE=/boot/firmware/config.txt
+export PICONFIG_CMDLINE_TXT_FILE=/boot/firmware/cmdline.txt
+export PICONFIG_CONFIG_BAK_FILE=/boot/firmware/config.txt.backup
+export PICONFIG_CMDLINE_BAK_FILE=/boot/firmware/cmdline.txt.backup
+
+# Ensure the correct board for arm64
+export BASE_BOARD="raspberrypiarmhf"  # Ironically keep this to avoid errors, but our overrides will work
