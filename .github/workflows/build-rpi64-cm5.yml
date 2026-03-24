@@ -1,0 +1,63 @@
+name: Build RatOS rpi64 CM5
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - v2.1.x
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install QEMU & binfmt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static binfmt-support
+          sudo update-binfmts --enable
+
+      - name: Install Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build CustomPiOS Environment
+        run: |
+          chmod +x ./build-pi64.sh
+          ./build-pi64.sh --device cm5 --disable-pcie
+
+      - name: Collect Build Outputs
+        run: |
+          mkdir -p artifacts
+          cp output/*.img.xz artifacts/
+          cp output/*.deb artifacts/ || true
+
+      - name: Generate update.json
+        run: |
+          VERSION=$(date +'%Y.%m.%d-%H%M')
+          IMAGE=$(ls artifacts/*.img.xz | xargs -n 1 basename)
+          cat > artifacts/update.json <<EOF
+          {
+            "version": "$VERSION",
+            "image": "$IMAGE",
+            "url": "https://github.com/${{ github.repository }}/releases/latest/download/$IMAGE",
+            "packages": []
+          }
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "rpi64-cm5-${{ github.run_number }}"
+          name: "RatOS CM5 rpi64 Build ${{ github.run_number }}"
+          files: artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
