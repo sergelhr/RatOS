@@ -90,6 +90,7 @@ fi
 # Step 12: Enable autologin (required for Pi3's, Pi4's do this by default, for some reason)
 echo_green "Enable autologin..."
 systemctl set-default multi-user.target
+mkdir -p /etc/systemd/system/getty@tty1.service.d/
 cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << EOF
 [Service]
 ExecStart=
