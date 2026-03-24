@@ -1,3 +1,4 @@
+
 name: Build RatOS rpi64 CM5
 
 on:
@@ -7,6 +8,9 @@ on:
       - master
       - v2.1.x
   workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 permissions:
   contents: write
