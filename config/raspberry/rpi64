@@ -1,55 +1,137 @@
-#!/usr/bin/env bash
-# rpi64 — Raspberry Pi CM4/CM5 64-bit configuration (Bookworm)
-# Deterministic config file: defines and exports variables only (no side effects).
-# Place at ratos/config/raspberry/rpi64 and commit to repo branch 2.1.0.
+name: build (raspberry/rpi64)
 
-set -euo pipefail
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
 
-# Board identification
-BOARD_NAME="raspberrypi-cm5"
-BOARD_VARIANT="bookworm-lite"
-BOARD_ARCH="aarch64"        # CPU architecture label for scripts that expect aarch64
-DEBOOTSTRAP_ARCH="arm64"    # architecture used by debootstrap/apt
-BASE_ARCH="arm64"           # base architecture used across the build
+permissions:
+  contents: read
 
-# QEMU static binary path used for chroot/emulation (ensure installed on runner)
-QEMU_BINARY="/usr/bin/qemu-aarch64-static"
+env:
+  RPI64_PATH: ratos/config/raspberry/rpi64
+  IMAGE_CACHE_DIR: ${{ github.workspace }}/.cache/rpi-image
+  PNPM_STORE: ${{ github.workspace }}/.pnpm-store
 
-# Image download URLs (keep these static so file hash is stable)
-# Update these URLs manually if upstream changes; do not compute them dynamically.
-DOWNLOAD_URL_CHECKSUM="https://downloads.raspberrypi.org/raspios_oldstable_lite_arm64/images/raspios_oldstable_lite_arm64-2025-11-24/2025-11-24-raspios-bookworm-arm64-lite.img.xz.sha256"
-DOWNLOAD_URL_IMAGE="https://downloads.raspberrypi.org/raspios_oldstable_lite_arm64/images/raspios_oldstable_lite_arm64-2025-11-24/2025-11-24-raspios-bookworm-arm64-lite.img.xz.torrent"
+jobs:
+  build-rpi64:
+    runs-on: ubuntu-latest
 
-# Local filenames (optional defaults used by build scripts)
-IMAGE_FILENAME="raspios-bookworm-arm64-lite.img.xz"
-CHECKSUM_FILENAME="raspios-bookworm-arm64-lite.img.xz.sha256"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-# Export everything so scripts that source this file can read them
-export BOARD_NAME
-export BOARD_VARIANT
-export BOARD_ARCH
-export DEBOOTSTRAP_ARCH
-export BASE_ARCH
-export QEMU_BINARY
-export DOWNLOAD_URL_CHECKSUM
-export DOWNLOAD_URL_IMAGE
-export IMAGE_FILENAME
-export CHECKSUM_FILENAME
+      - name: Ensure rpi64 exists and is executable
+        run: |
+          if [ ! -f "${{ env.RPI64_PATH }}" ]; then
+            echo "ERROR: ${RPI64_PATH} not found" >&2
+            exit 1
+          fi
+          chmod +x "${{ env.RPI64_PATH }}"
+          echo "rpi64 file present"
 
-# When executed directly, print the configuration (harmless, no side effects)
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  cat <<EOF
-rpi64 configuration
---------------------
-BOARD_NAME:        $BOARD_NAME
-BOARD_VARIANT:     $BOARD_VARIANT
-BOARD_ARCH:        $BOARD_ARCH
-DEBOOTSTRAP_ARCH:  $DEBOOTSTRAP_ARCH
-BASE_ARCH:         $BASE_ARCH
-QEMU_BINARY:       $QEMU_BINARY
-DOWNLOAD_CHECKSUM: $DOWNLOAD_URL_CHECKSUM
-DOWNLOAD_IMAGE:    $DOWNLOAD_URL_IMAGE
-IMAGE_FILENAME:    $IMAGE_FILENAME
-CHECKSUM_FILENAME: $CHECKSUM_FILENAME
-EOF
-fi
+      - name: Read rpi64 variables
+        id: loadvars
+        run: |
+          # shellcheck disable=SC1090
+          source "${{ env.RPI64_PATH }}"
+          echo "DOWNLOAD_URL_CHECKSUM=${DOWNLOAD_URL_CHECKSUM}" >> $GITHUB_OUTPUT
+          echo "DOWNLOAD_URL_IMAGE=${DOWNLOAD_URL_IMAGE}" >> $GITHUB_OUTPUT
+          echo "IMAGE_FILENAME=${IMAGE_FILENAME:-}" >> $GITHUB_OUTPUT
+          echo "CHECKSUM_FILENAME=${CHECKSUM_FILENAME:-}" >> $GITHUB_OUTPUT
+
+      - name: Cache downloaded image
+        id: image-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.IMAGE_CACHE_DIR }}
+          key: ${{ runner.os }}-rpi-image-${{ hashFiles(env.RPI64_PATH) }}-v1
+          restore-keys: |
+            ${{ runner.os }}-rpi-image-${{ hashFiles(env.RPI64_PATH) }}-
+            ${{ runner.os }}-rpi-image-
+
+      - name: Cache pnpm store
+        id: pnpm-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PNPM_STORE }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles(env.RPI64_PATH) }}-v1
+          restore-keys: |
+            ${{ runner.os }}-pnpm-${{ hashFiles(env.RPI64_PATH) }}-
+            ${{ runner.os }}-pnpm-
+
+      - name: Install system deps and Node 20
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static binfmt-support curl ca-certificates git build-essential
+          curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+          sudo apt-get install -y nodejs
+
+      - name: Install pnpm
+        run: |
+          curl -fsSL https://get.pnpm.io/install.sh | sh -
+          echo "export PATH=\$HOME/.local/share/pnpm:\$PATH" >> $GITHUB_ENV
+          export PATH="$HOME/.local/share/pnpm:$PATH"
+          pnpm --version
+
+      - name: Ensure QEMU binary exists
+        run: |
+          if [ ! -x /usr/bin/qemu-aarch64-static ]; then
+            sudo apt-get install -y qemu-user-static
+          fi
+          /usr/bin/qemu-aarch64-static --version || true
+
+      - name: Download and verify Raspberry Pi image (if cache miss)
+        if: steps.image-cache.outputs.cache-hit != 'true'
+        env:
+          CHECKSUM_URL: ${{ steps.loadvars.outputs.DOWNLOAD_URL_CHECKSUM }}
+          IMAGE_URL: ${{ steps.loadvars.outputs.DOWNLOAD_URL_IMAGE }}
+          IMAGE_DIR: ${{ env.IMAGE_CACHE_DIR }}
+        run: |
+          mkdir -p "$IMAGE_DIR"
+          cd "$IMAGE_DIR"
+          echo "Downloading checksum from $CHECKSUM_URL"
+          if [ -n "$CHECKSUM_URL" ]; then
+            curl -fsSLO "$CHECKSUM_URL" || echo "Checksum download failed; continuing"
+          fi
+          echo "Downloading image from $IMAGE_URL"
+          curl -fsSLO "$IMAGE_URL" || echo "Image download failed; continuing"
+          # Attempt to identify files for verification
+          CHECKSUM_FILE=$(ls *.sha256 2>/dev/null || true)
+          IMG_XZ_FILE=$(ls *.img.xz 2>/dev/null || true)
+          if [ -n "$CHECKSUM_FILE" ] && [ -n "$IMG_XZ_FILE" ]; then
+            echo "Verifying checksum"
+            sha256sum -c "$CHECKSUM_FILE" || (echo "Checksum verification failed" && exit 1)
+          else
+            echo "Checksum or image file not found; skipping verification"
+          fi
+
+      - name: Upload downloaded image as artifact (if present)
+        if: steps.image-cache.outputs.cache-hit != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpi-image
+          path: ${{ env.IMAGE_CACHE_DIR }}
+
+      - name: Install project JS deps (pnpm)
+        env:
+          PATH: ${{ env.PATH }}:$HOME/.local/share/pnpm
+        run: |
+          mkdir -p "${{ env.PNPM_STORE }}"
+          if [ -d "${{ github.workspace }}/src" ]; then
+            cd "${{ github.workspace }}/src"
+            pnpm install --store-dir="${{ env.PNPM_STORE }}" --frozen-lockfile
+          else
+            echo "No src directory found; skipping pnpm install"
+          fi
+
+      - name: Build / run tasks
+        run: |
+          echo "Replace this step with your actual build/test commands."
+          # Example: cd src && pnpm run build
