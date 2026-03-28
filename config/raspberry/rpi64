@@ -1,38 +1,55 @@
 #!/usr/bin/env bash
-# Shebang for better file detection
+# rpi64 — Raspberry Pi CM4/CM5 64-bit configuration (Bookworm)
+# Deterministic config file: defines and exports variables only (no side effects).
+# Place at ratos/config/raspberry/rpi64 and commit to repo branch 2.1.0.
 
-# extra_board_config (example)
+set -euo pipefail
+
+# Board identification
 BOARD_NAME="raspberrypi-cm5"
 BOARD_VARIANT="bookworm-lite"
-BOARD_ARCH="aarch64"        # change from armhf -> arm64 (or aarch64 if your scripts expect that)
-DEBOOTSTRAP_ARCH="arm64"  # ensure debootstrap/apt uses arm64
+BOARD_ARCH="aarch64"        # CPU architecture label for scripts that expect aarch64
+DEBOOTSTRAP_ARCH="arm64"    # architecture used by debootstrap/apt
+BASE_ARCH="arm64"           # base architecture used across the build
+
+# QEMU static binary path used for chroot/emulation (ensure installed on runner)
 QEMU_BINARY="/usr/bin/qemu-aarch64-static"
 
-
-
-# New locations after Bookworm turned into 'oldstable'
+# Image download URLs (keep these static so file hash is stable)
+# Update these URLs manually if upstream changes; do not compute them dynamically.
 DOWNLOAD_URL_CHECKSUM="https://downloads.raspberrypi.org/raspios_oldstable_lite_arm64/images/raspios_oldstable_lite_arm64-2025-11-24/2025-11-24-raspios-bookworm-arm64-lite.img.xz.sha256"
 DOWNLOAD_URL_IMAGE="https://downloads.raspberrypi.org/raspios_oldstable_lite_arm64/images/raspios_oldstable_lite_arm64-2025-11-24/2025-11-24-raspios-bookworm-arm64-lite.img.xz.torrent"
 
+# Local filenames (optional defaults used by build scripts)
+IMAGE_FILENAME="raspios-bookworm-arm64-lite.img.xz"
+CHECKSUM_FILENAME="raspios-bookworm-arm64-lite.img.xz.sha256"
 
-# export variables
+# Export everything so scripts that source this file can read them
+export BOARD_NAME
+export BOARD_VARIANT
+export BOARD_ARCH
+export DEBOOTSTRAP_ARCH
 export BASE_ARCH
-export DOWNLOAD_URL_CHECKSUM
-export DOWNLOAD_URL_IMAGE#!/usr/bin/env bash
-# Shebang for better file detection
-
-BASE_ARCH="arm64"
-
-# Keep for Bookworm template
-# DOWNLOAD_URL_CHECKSUM="https://downloads.raspberrypi.org/raspios_lite_arm64_latest.sha256"
-# DOWNLOAD_URL_IMAGE="https://downloads.raspberrypi.org/raspios_lite_arm64_latest.torrent"
-
-# New locations after Bullseye turned into 'oldstable'
-DOWNLOAD_URL_CHECKSUM="https://downloads.raspberrypi.com/raspios_oldstable_lite_arm64/images/raspios_oldstable_lite_arm64-2023-10-10/2023-05-03-raspios-bullseye-arm64-lite.img.xz.sha256"
-DOWNLOAD_URL_IMAGE="https://downloads.raspberrypi.com/raspios_oldstable_lite_arm64/images/raspios_oldstable_lite_arm64-2023-10-10/2023-05-03-raspios-bullseye-arm64-lite.img.xz.torrent"
-
-
-# export variables
-export BASE_ARCH
+export QEMU_BINARY
 export DOWNLOAD_URL_CHECKSUM
 export DOWNLOAD_URL_IMAGE
+export IMAGE_FILENAME
+export CHECKSUM_FILENAME
+
+# When executed directly, print the configuration (harmless, no side effects)
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  cat <<EOF
+rpi64 configuration
+--------------------
+BOARD_NAME:        $BOARD_NAME
+BOARD_VARIANT:     $BOARD_VARIANT
+BOARD_ARCH:        $BOARD_ARCH
+DEBOOTSTRAP_ARCH:  $DEBOOTSTRAP_ARCH
+BASE_ARCH:         $BASE_ARCH
+QEMU_BINARY:       $QEMU_BINARY
+DOWNLOAD_CHECKSUM: $DOWNLOAD_URL_CHECKSUM
+DOWNLOAD_IMAGE:    $DOWNLOAD_URL_IMAGE
+IMAGE_FILENAME:    $IMAGE_FILENAME
+CHECKSUM_FILENAME: $CHECKSUM_FILENAME
+EOF
+fi
