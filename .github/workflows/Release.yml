@@ -58,7 +58,7 @@ jobs:
           token: ${{ secrets.PAT }}
           repository: Rat-OS/RatOS-configurator
           persist-credentials: true
-          ref: "v2.1.x-deployment"
+          ref: "v2.1.x-deployment2"
 
       - name: "RatOS Configurator: git add & commit & tag & push"
         uses: EndBug/add-and-commit@v9
