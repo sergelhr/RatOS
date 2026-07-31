@@ -43,16 +43,16 @@ gpu_mem=128
 ## Do not enable this blindly on every CM4 carrier.
 dtoverlay=dwc2,dr_mode=host
 
-[pi5]
+## [pi5]
 ## Applies to Raspberry Pi 5, Pi 500 and CM5.
 ##
 ## Enable the full KMS graphics driver.
-dtoverlay=vc4-kms-v3d
+## dtoverlay=vc4-kms-v3d
 
 ## Do not use vc4-fkms-v3d on Pi 5.
 ## Do not set gpu_mem=256; Pi 5 graphics memory is dynamically managed.
 
-[cm5]
+## [cm5]
 ## CM5 already reads the [pi5] section.
 ##
 ## Add carrier-board-specific settings here when required.
