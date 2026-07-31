@@ -54,13 +54,13 @@ jobs:
       matrix:
         config: ${{ fromJson(needs.setup.outputs.matrix) }}
     steps:
-      - name: Cache aptitude
-        uses: actions/cache@v5
-        with:
-          path: repository/src/workspace/aptcache
-          key: ${{ matrix.config }}-apt-get-${{ hashFiles('**/apt.txt') }}
-          restore-keys: |
-            ${{ matrix.config }}-apt-get-
+    - name: Cache aptitude
+  uses: actions/cache@v5
+  with:
+    path: repository/src/workspace/aptcache
+    key: ${{ matrix.config }}-trixie-apt-get-v1
+    restore-keys: |
+      ${{ matrix.config }}-trixie-apt-get-
 
       - name: Build image
         id: build
