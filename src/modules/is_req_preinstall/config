@@ -1,22 +1,14 @@
 #!/bin/bash
 # shellcheck disable=all
-[ -n "$IS_REQ_PREINSTALL_VENV_DIR" ] || \
-IS_REQ_PREINSTALL_VENV_DIR=/home/${BASE_USER}/klippy-env
 
-[ -n "$IS_REQ_PREINSTALL_DEPS" ] || IS_REQ_PREINSTALL_DEPS="\
+[ -n "${IS_REQ_PREINSTALL_VENV_DIR:-}" ] || \
+    IS_REQ_PREINSTALL_VENV_DIR="/home/${BASE_USER}/klippy-env"
+
+[ -n "${IS_REQ_PREINSTALL_DEPS:-}" ] || IS_REQ_PREINSTALL_DEPS="\
 python3-numpy \
 python3-matplotlib \
 libopenblas0 \
 libopenblas-dev \
-libgfortran5 \
-gfortran"
+libgfortran5"
 
-if [[ -n "${IS_REQ_PREINSTALL_PIP//[[:space:]]/}" ]]; then
-    read -r -a PIP_PACKAGES <<< "${IS_REQ_PREINSTALL_PIP}"
-
-    runuser -u "${BASE_USER}" -- \
-        /home/${BASE_USER}/klippy-env/bin/python -m pip install \
-        "${PIP_PACKAGES[@]}"
-else
-    echo "No pip packages configured, skipping."
-fi
+[ -n "${IS_REQ_PREINSTALL_PIP:-}" ] || IS_REQ_PREINSTALL_PIP=""
