@@ -81,7 +81,7 @@ dtparam=i2c_arm=on
 
 ## Trixie images for Pi 4, CM4 and Pi 5 should already use a 64-bit kernel.
 ## Leave this commented unless building an image that requires it explicitly.
-# arm_64bit=1
+arm_64bit=1
 
 ####################################################
 
