@@ -1,102 +1,167 @@
 #!/usr/bin/env bash
-# Preinstall customized config.txt
-# Written by Stephan Wendel <me@stephanwe.de> aka KwadFan
-# This file may distributed under GPLv3
-# Copyright 2021
-########
+# Preinstall customised Raspberry Pi / RatOS configuration
+# Debian 13 (Trixie) compatible revision
 
 # shellcheck enable=require-variable-braces
 
-## Source error handling, leave this in place
 set -Eex
 
-# Set DEBIAN_FRONTEND to noninteractive
-if [[ "${DEBIAN_FRONTEND}" != "noninteractive" ]]; then
+if [[ "${DEBIAN_FRONTEND:-}" != "noninteractive" ]]; then
     export DEBIAN_FRONTEND=noninteractive
 fi
 
-## Source CustomPIOS common.sh
+# CustomPiOS common helpers
 # shellcheck disable=SC1091
 source /common.sh
 install_cleanup_trap
+
+# Validate required variables early.
+: "${PICONFIG_CONFIG_TXT_FILE:?PICONFIG_CONFIG_TXT_FILE is not set}"
+: "${PICONFIG_CONFIG_BAK_FILE:?PICONFIG_CONFIG_BAK_FILE is not set}"
+: "${PICONFIG_CMDLINE_TXT_FILE:?PICONFIG_CMDLINE_TXT_FILE is not set}"
+: "${PICONFIG_CMDLINE_BAK_FILE:?PICONFIG_CMDLINE_BAK_FILE is not set}"
+: "${BASE_USER:?BASE_USER is not set}"
+
+# Trixie/Bookworm Raspberry Pi OS normally uses /boot/firmware.
+# Keep the framework-provided paths, but warn about an old /boot/config.txt target.
+if [[ "${PICONFIG_CONFIG_TXT_FILE}" == "/boot/config.txt" && -d /boot/firmware ]]; then
+    echo_red "WARNING: PICONFIG_CONFIG_TXT_FILE points to /boot/config.txt; Trixie normally uses /boot/firmware/config.txt"
+fi
 
 # Step 1: Copy msos_config.txt
 echo_green "Copying temporary file ..."
 unpack /filesystem/tmp /tmp root
 
+if [[ ! -f /tmp/msos_config.txt ]]; then
+    echo_red "Missing required file: /tmp/msos_config.txt"
+    exit 1
+fi
+
 echo_green "Merge RatOS configuration with default config.txt ..."
 
+install -d -m 0755 "$(dirname "${PICONFIG_CONFIG_TXT_FILE}")"
+
 if [[ ! -f "${PICONFIG_CONFIG_TXT_FILE}" ]]; then
-    echo_red "Default config.txt not found. Putting in an empty one ..."
-    touch "${PICONFIG_CONFIG_TXT_FILE}"
+    echo_red "Default config.txt not found. Creating an empty one ..."
+    : >"${PICONFIG_CONFIG_TXT_FILE}"
 fi
 
-# Step 2: Copy default config to "/tmp"
-cp "${PICONFIG_CONFIG_TXT_FILE}" /tmp
+cp -- "${PICONFIG_CONFIG_TXT_FILE}" /tmp/config.txt
+cp -- "${PICONFIG_CONFIG_TXT_FILE}" "${PICONFIG_CONFIG_BAK_FILE}"
 
-# Step 3: Move default config to backup file
-mv "${PICONFIG_CONFIG_TXT_FILE}" "${PICONFIG_CONFIG_BAK_FILE}"
+# Do not force FKMS on Trixie. vc4-fkms-v3d is a legacy display path.
+# An optional compatibility switch can disable full KMS for a specifically
+# tested legacy display, but it does not automatically enable FKMS.
+if [[ "${PICONFIG_DISABLE_KMS:-0}" == "1" ]]; then
+    echo_green "Disabling vc4-kms-v3d for a legacy display override ..."
+    sed -Ei 's/^[[:space:]]*(dtoverlay=vc4-kms-v3d.*)$/#\1/' /tmp/config.txt
+fi
 
-echo_green "Disable kms and enable fkms - temporary workaround for BTT pi TFT touch screens"
-sed -i 's/^dtoverlay=vc4-kms-v3d/#dtoverlay=vc4-kms-v3d/' /tmp/config.txt
+cat /tmp/config.txt /tmp/msos_config.txt > /tmp/config.new
+install -m 0644 /tmp/config.new "${PICONFIG_CONFIG_TXT_FILE}"
 
-# Step 4: Concatenate files to config
-cat /tmp/config.txt /tmp/msos_config.txt >/tmp/config.new
+rm -f /tmp/config.txt /tmp/config.new /tmp/msos_config.txt
 
-# Step 5: Copy new config to "/boot/config.txt"
-cp /tmp/config.new "${PICONFIG_CONFIG_TXT_FILE}"
-
-# Step 6: Cleanup
-rm -f /tmp/*config*
+# Step 2: Back up and update cmdline.txt
+install -d -m 0755 "$(dirname "${PICONFIG_CMDLINE_TXT_FILE}")"
 
 if [[ ! -f "${PICONFIG_CMDLINE_TXT_FILE}" ]]; then
-    echo_red "Default cmdline.txt not found. Putting in an empty one ..."
-    touch "${PICONFIG_CMDLINE_TXT_FILE}"
+    echo_red "Default cmdline.txt not found. Creating an empty one ..."
+    : >"${PICONFIG_CMDLINE_TXT_FILE}"
 fi
-# Step 7: Copy default cmdline.txt to backup file
-cp "${PICONFIG_CMDLINE_TXT_FILE}" "${PICONFIG_CMDLINE_BAK_FILE}"
 
-# Step 8: Disable serial console to enable Hardware Serial (PL011).
-echo_green "Disable Serial Linux console ..."
-sed -i 's/console=serial0,115200 //' "${PICONFIG_CMDLINE_TXT_FILE}"
+cp -- "${PICONFIG_CMDLINE_TXT_FILE}" "${PICONFIG_CMDLINE_BAK_FILE}"
 
-# Step 9: Enable i2c modules
-# Also needs corresponding bits in config.txt (see #196)
-echo_green "Enabling i2c-dev"
-# Enable i2c_bcm2708 is disabled
-[[ -f /etc/modprobe.d/raspi-blacklist.conf ]] && sed /etc/modprobe.d/raspi-blacklist.conf -i -e "s/^\(blacklist[[:space:]]*i2c[-_]bcm2708\)/#\1/"
-[[ -f /etc/modules ]] || touch /etc/modules
-sed /etc/modules -i -e "s/^#[[:space:]]*\(i2c[-_]dev\)/\1/" # Uncomment i2c_dev
-if ! grep -q "^i2c[-_]dev" /etc/modules; then               # Add if doesn't exist
-    printf "i2c-dev\n" >>/etc/modules
+echo_green "Disabling the serial Linux console ..."
+# Remove common Raspberry Pi serial-console forms without disturbing other args.
+sed -Ei \
+    -e 's/(^|[[:space:]])console=(serial0|ttyAMA0|ttyS0),[0-9]+([[:space:]]|$)/ /g' \
+    -e 's/[[:space:]]+/ /g' \
+    -e 's/^ //; s/ $//' \
+    "${PICONFIG_CMDLINE_TXT_FILE}"
+
+# Step 3: Enable I2C userspace support
+echo_green "Enabling i2c-dev ..."
+[[ -f /etc/modules ]] || : >/etc/modules
+
+# Legacy blacklist handling is retained only when the old file exists.
+if [[ -f /etc/modprobe.d/raspi-blacklist.conf ]]; then
+    sed -Ei 's/^[[:space:]]*blacklist[[:space:]]+i2c[-_]bcm2708/# &/' \
+        /etc/modprobe.d/raspi-blacklist.conf
 fi
-# install common i2c helpers
+
+sed -Ei 's/^[[:space:]]*#[[:space:]]*(i2c[-_]dev)[[:space:]]*$/\1/' /etc/modules
+if ! grep -Eq '^[[:space:]]*i2c[-_]dev([[:space:]]|$)' /etc/modules; then
+    printf '%s\n' 'i2c-dev' >>/etc/modules
+fi
+
 check_install_pkgs i2c-tools
 
-# Step 10: Disable bluetooth and related services
-echo_green "Disabling Bluetooth related services..."
+# Step 4: Disable Bluetooth services when present
+echo_green "Disabling Bluetooth-related services ..."
 systemctl_if_exists disable hciuart.service
 systemctl_if_exists disable bluetooth.service
 systemctl_if_exists disable bluealsa.service
 
+# Step 5: Configure dphys-swapfile when installed/configured
+if [[ -n "${PICONFIG_SWAP_CONF_FILE:-}" && -f "${PICONFIG_SWAP_CONF_FILE}" ]]; then
+    : "${PICONFIG_SWAP_SIZE:?PICONFIG_SWAP_SIZE is not set}"
+    : "${PICONFIG_SWAP_MAX:?PICONFIG_SWAP_MAX is not set}"
 
-# Step 11: Increase swapfile size
-if [[ -f "${PICONFIG_SWAP_CONF_FILE}" ]]; then
-    echo_green "Increasing swap file size to ${PICONFIG_SWAP_SIZE} Mb. Limit to ${PICONFIG_SWAP_MAX} Mb"
-    sed -i 's/^CONF_SWAPSIZE.*/'CONF_SWAPSIZE="${PICONFIG_SWAP_SIZE}"'/' "${PICONFIG_SWAP_CONF_FILE}"
-    sed -i 's/^#CONF_MAXSWAP.*/'CONF_MAXSWAP="${PICONFIG_SWAP_MAX}"'/' "${PICONFIG_SWAP_CONF_FILE}"
+    echo_green "Setting swap file size to ${PICONFIG_SWAP_SIZE} MiB, maximum ${PICONFIG_SWAP_MAX} MiB ..."
+
+    if grep -q '^CONF_SWAPSIZE=' "${PICONFIG_SWAP_CONF_FILE}"; then
+        sed -Ei "s/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=${PICONFIG_SWAP_SIZE}/" "${PICONFIG_SWAP_CONF_FILE}"
+    else
+        printf 'CONF_SWAPSIZE=%s\n' "${PICONFIG_SWAP_SIZE}" >>"${PICONFIG_SWAP_CONF_FILE}"
+    fi
+
+    if grep -Eq '^#?CONF_MAXSWAP=' "${PICONFIG_SWAP_CONF_FILE}"; then
+        sed -Ei "s/^#?CONF_MAXSWAP=.*/CONF_MAXSWAP=${PICONFIG_SWAP_MAX}/" "${PICONFIG_SWAP_CONF_FILE}"
+    else
+        printf 'CONF_MAXSWAP=%s\n' "${PICONFIG_SWAP_MAX}" >>"${PICONFIG_SWAP_CONF_FILE}"
+    fi
 fi
 
-# Step 12: Enable autologin (required for Pi3's, Pi4's do this by default, for some reason)
-echo_green "Enable autologin..."
+# Step 6: Enable tty1 console autologin
+echo_green "Enabling console autologin for ${BASE_USER} ..."
+
+if ! getent passwd "${BASE_USER}" >/dev/null; then
+    echo_red "Autologin user does not exist: ${BASE_USER}"
+    exit 1
+fi
+
+AGETTY_PATH="$(command -v agetty || true)"
+if [[ -z "${AGETTY_PATH}" ]]; then
+    echo_red "agetty is not installed"
+    exit 1
+fi
+
 systemctl set-default multi-user.target
-cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << EOF
+install -d -m 0755 /etc/systemd/system/getty@tty1.service.d
+
+cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf <<EOF_AUTOLOGIN
 [Service]
 ExecStart=
-ExecStart=-/sbin/agetty --autologin $BASE_USER --noclear %I \$TERM
-EOF
+ExecStart=-${AGETTY_PATH} --autologin ${BASE_USER} --noclear %I \$TERM
+EOF_AUTOLOGIN
 
-# Step 13: Fix locale
-echo_green "Generating and setting default locale to en_US.UTF-8..."
-# Use en_US.UTF-8 as default locale
-raspi-config nonint do_change_locale en_US.UTF-8
+systemctl enable getty@tty1.service
+
+# daemon-reload can fail or be unnecessary in some image-build chroots.
+# The drop-in is read normally on first boot.
+systemctl daemon-reload || true
+
+# Step 7: Configure locale without depending exclusively on raspi-config
+echo_green "Generating and setting default locale to en_US.UTF-8 ..."
+check_install_pkgs locales
+
+if [[ -f /etc/locale.gen ]]; then
+    sed -Ei 's/^[[:space:]]*#[[:space:]]*(en_US.UTF-8[[:space:]]+UTF-8)/\1/' /etc/locale.gen
+    if ! grep -Eq '^[[:space:]]*en_US.UTF-8[[:space:]]+UTF-8' /etc/locale.gen; then
+        printf '%s\n' 'en_US.UTF-8 UTF-8' >>/etc/locale.gen
+    fi
+fi
+
+locale-gen en_US.UTF-8
+update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
