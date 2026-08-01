@@ -54,13 +54,13 @@ jobs:
       matrix:
         config: ${{ fromJson(needs.setup.outputs.matrix) }}
     steps:
-    - name: Cache aptitude
-  uses: actions/cache@v5
-  with:
-    path: repository/src/workspace/aptcache
-    key: ${{ matrix.config }}-trixie-apt-get-v1
-    restore-keys: |
-      ${{ matrix.config }}-trixie-apt-get-
+      - name: Cache aptitude
+        uses: actions/cache@v3
+        with:
+          path: repository/src/workspace/aptcache
+          key: ${{ matrix.config }}-apt-get-${{ hashFiles('**/apt.txt') }}
+          restore-keys: |
+            ${{ matrix.config }}-apt-get-
 
       - name: Build image
         id: build
@@ -88,7 +88,7 @@ jobs:
 
       - name: Upload failed Logfile
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: failed-${{ steps.move-image.outputs.image }}.log
           path: repository/src/build.log
@@ -107,19 +107,19 @@ jobs:
           sha256sum ${{ steps.move-image.outputs.image }}.img.xz > ${{ steps.move-image.outputs.image }}.img.xz.sha256
 
       - name: Upload Compressed Image
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ steps.move-image.outputs.image }}.img.xz
           path: ${{ steps.move-image.outputs.image }}.img.xz
 
       - name: Upload Compressed Image Checksum
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ steps.move-image.outputs.image }}.img.xz.sha256
           path: ${{ steps.move-image.outputs.image }}.img.xz.sha256
 
       - name: Upload Image Checksum
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ steps.move-image.outputs.image }}.img.sha256
           path: ${{ steps.move-image.outputs.image }}.img.sha256
