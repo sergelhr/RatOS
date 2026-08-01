@@ -1,9 +1,17 @@
+
 [Unit]
-Description=Automatically generates an internet Hotspot when a valid ssid is not in range
-After=network-online.target
+Description=RatOS automatic Wi-Fi hotspot (NetworkManager)
+Documentation=https://github.com/RaspberryConnect/AccessPopup
+Wants=NetworkManager.service
+After=NetworkManager.service network-pre.target
+Before=network-online.target
+
 [Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/usr/bin/autohotspotN
+Type=simple
+ExecStart=/usr/bin/autohotspotN --daemon
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+
 [Install]
 WantedBy=multi-user.target
